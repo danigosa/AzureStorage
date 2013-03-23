@@ -1,10 +1,13 @@
 from django.conf import settings
+from django.core.files.base import File
 from django.core.files.storage import Storage
 
 from azure.storage import *
 from tempfile import SpooledTemporaryFile
 from datetime import datetime
-import os, mimetypes
+import os, mimetypes, logging
+
+log = logging.getLogger(__name__)
 
 class AzureStorage(Storage):
 
@@ -20,13 +23,18 @@ class AzureStorage(Storage):
         data = self.blob_service.get_blob(self.container, name)
         temp_file = SpooledTemporaryFile(mode='wb')
         temp_file.write(data)
-        return temp_file
+        return File(temp_file)
 
     def _save(self, name, content):
         content.open(mode="rb")
         data = content.read()
         content_type = mimetypes.guess_type(name)[0]
-        metadata = {"modified_time": "%f" % os.path.getmtime(content.name)}
+        metadata = {"modified_time": 0}
+        try:
+            metadata = {"modified_time": "%f" % os.path.getmtime(content.name)}
+        except:
+            log.warn("Blob not having metadata: " + content.name)
+
         self.blob_service.put_blob(self.container, name, data, x_ms_blob_type='BlockBlob', x_ms_blob_content_type=content_type, x_ms_meta_name_values=metadata)
         return name
 
